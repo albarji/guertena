@@ -1,0 +1,8 @@
+name: neural-style
+channels:
+  - pytorch
+  - nvidia
+dependencies:
+  - pytorch=1.9.*
+  - torchvision=0.10.*
+  - cudatoolkit=11.1
