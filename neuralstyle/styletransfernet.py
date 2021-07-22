@@ -10,17 +10,23 @@ import torch.nn.functional as F
 import torchvision.models as models
 
 
+
+def get_device():
+    """Returns the Pytorch device into which to run the calculations"""
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
 class StyleTransferNet(torch.nn.Module):
     """Neural network that implements the style transfer algorithm of Gatys"""
-    vgg19_normalization_mean = torch.tensor([0.485, 0.456, 0.406])
-    vgg19_normalization_std = torch.tensor([0.229, 0.224, 0.225])
+    vgg19_normalization_mean = torch.tensor([0.485, 0.456, 0.406]).to(get_device())
+    vgg19_normalization_std = torch.tensor([0.229, 0.224, 0.225]).to(get_device())
     content_layers_default = ['conv_4']
     style_layers_default = ['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']
 
     def __init__(self, content_img, style_img):
         super(StyleTransferNet, self).__init__()
         # Initialize VGG19 reference architecture
-        cnn = models.vgg19(pretrained=True).features.eval()
+        cnn = models.vgg19(pretrained=True).features.to(get_device()).eval()
 
         # Start with image normalization layer
         normalization = Normalization(self.vgg19_normalization_mean, self.vgg19_normalization_std)

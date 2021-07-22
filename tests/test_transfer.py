@@ -8,5 +8,5 @@ def test_run_style_transfer():
     data_folder = "./tests/data"
     content = Image.open(f"{data_folder}/dancing.jpg")
     style = Image.open(f"{data_folder}/picasso.jpg")
-    result = run_style_transfer(content, style)
-    import pdb; pdb.set_trace()
+    result = run_style_transfer(content, style, num_steps=500)
+    result.save("output.png")
