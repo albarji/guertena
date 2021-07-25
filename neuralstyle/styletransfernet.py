@@ -3,6 +3,7 @@
 References:
     - Gatys et al. - A Neural Algorithm of Artistic Style - https://arxiv.org/abs/1508.06576
     - Pytorch Neural Style tutorial: https://pytorch.org/tutorials/advanced/neural_style_tutorial.html
+    - Pytorch implementation by ProGamerGov https://github.com/ProGamerGov/neural-style-pt
 """
 import torch
 import torch.nn as nn
@@ -23,7 +24,7 @@ class StyleTransferNet(torch.nn.Module):
     content_layers_default = ['conv_4']
     style_layers_default = ['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']
 
-    def __init__(self, content_img, style_img):
+    def __init__(self, content_img, style_img, content_weight, style_weight):
         super(StyleTransferNet, self).__init__()
         # Initialize VGG19 reference architecture
         cnn = models.vgg19(pretrained=True).features.to(get_device()).eval()
@@ -58,14 +59,14 @@ class StyleTransferNet(torch.nn.Module):
             if name in self.content_layers_default:
                 # add content loss:
                 target = self.model(content_img).detach()
-                content_loss = ContentLoss(target)
+                content_loss = ContentLoss(target, content_weight)
                 self.model.add_module("content_loss_{}".format(i), content_loss)
                 self.content_losses.append(content_loss)
 
             if name in self.style_layers_default:
                 # add style loss:
                 target_feature = self.model(style_img).detach()
-                style_loss = StyleLoss(target_feature)
+                style_loss = StyleLoss(target_feature, style_weight)
                 self.model.add_module("style_loss_{}".format(i), style_loss)
                 self.style_losses.append(style_loss)
 
@@ -80,14 +81,30 @@ class StyleTransferNet(torch.nn.Module):
         return self.model(x)
 
 
+class ScaleGradients(torch.autograd.Function):
+    """Scale gradients in the backward pass"""
+    @staticmethod
+    def forward(self, input_tensor, strength):
+        self.strength = strength
+        return input_tensor
+
+    @staticmethod
+    def backward(self, grad_output):
+        grad_input = grad_output.clone()
+        grad_input = grad_input / (torch.norm(grad_input, keepdim=True) + 1e-8)
+        return grad_input * self.strength, None
+
+
 class ContentLoss(nn.Module):
     """Style transfer content loss: penalizes differences between a target image and generated image activations"""
-    def __init__(self, target):
+    def __init__(self, target, content_weight):
         super(ContentLoss, self).__init__()
         self.target = target.detach()  # Do not compute gradients for target image
+        self.content_weight = content_weight
 
     def forward(self, input):
-        self.loss = F.mse_loss(input, self.target)
+        #self.loss = ScaleGradients.apply(F.mse_loss(input, self.target), self.content_weight) * self.content_weight
+        self.loss = F.mse_loss(input, self.target) * self.content_weight
         return input
 
 
@@ -107,13 +124,15 @@ def gram_matrix(input):
 
 class StyleLoss(nn.Module):
     """Style transfer style loss: penalizes differences between target image and generated image Gram matrices (activation correlations)"""
-    def __init__(self, target):
+    def __init__(self, target, style_weight):
         super(StyleLoss, self).__init__()
         self.target = gram_matrix(target).detach()
+        self.style_weight = style_weight
 
     def forward(self, input):
         G = gram_matrix(input)
-        self.loss = F.mse_loss(G, self.target)
+        #self.loss = ScaleGradients.apply(F.mse_loss(G, self.target), self.style_weight) * self.style_weight
+        self.loss = F.mse_loss(G, self.target) * self.style_weight
         return input
 
 
@@ -124,8 +143,8 @@ class Normalization(nn.Module):
         # .view the mean and std to make them [C x 1 x 1] so that they can
         # directly work with image Tensor of shape [B x C x H x W].
         # B is batch size. C is number of channels. H is height and W is width.
-        self.mean = torch.tensor(mean).view(-1, 1, 1)
-        self.std = torch.tensor(std).view(-1, 1, 1)
+        self.mean = mean.clone().detach().view(-1, 1, 1)
+        self.std = std.clone().detach().view(-1, 1, 1)
 
     def forward(self, img):
         # normalize img

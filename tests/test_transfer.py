@@ -2,11 +2,12 @@
 
 from PIL import Image
 
-from neuralstyle.driver import run_style_transfer
+from neuralstyle.driver import style_transfer
 
-def test_run_style_transfer():
+def test_style_transfer():
     data_folder = "./tests/data"
     content = Image.open(f"{data_folder}/dancing.jpg")
     style = Image.open(f"{data_folder}/picasso.jpg")
-    result = run_style_transfer(content, style, num_steps=500)
-    result.save("output.png")
+    result = style_transfer(content, style, num_steps=1)
+    assert isinstance(result, Image.Image)
+    assert result.size == content.size
