@@ -31,7 +31,7 @@ def style_transfer(content_img, style_img, num_steps=500, style_weight=1000000, 
     # Initialize synthetic image with content image
     input_img = deepcopy(content_img).to(get_device())
 
-    optimizer = optim.LBFGS([input_img.requires_grad_()], tolerance_grad=0)
+    optimizer = optim.LBFGS([input_img.requires_grad_()], tolerance_grad=0, line_search_fn="strong_wolfe")
     #optimizer = optim.Adam([input_img.requires_grad_()])
 
     print('Optimizing...')
