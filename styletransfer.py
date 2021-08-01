@@ -19,10 +19,12 @@ if __name__ == "__main__":
     parser.add_argument('output', type=str, help='Path to output image')
     parser.add_argument('--num_steps', type=int, default=500,
                         help='Number of gradient descent iterations')
-    parser.add_argument('--style_weight', type=float, default=1000000,
-                        help='Weight of the style loss')
     parser.add_argument('--content_weight', type=float, default=1,
                         help='Weight of the content loss')
+    parser.add_argument('--style_weight', type=float, default=1000000,
+                        help='Weight of the style loss')
+    parser.add_argument('--tv_weight', type=float, default=1,
+                        help='Weight of the total variation loss')
     parser.add_argument('--output_resolution', type=str, default=None,
                         help='Resolution of output image, in format ROWSxCOLUMNS')
     args = parser.parse_args()
@@ -33,6 +35,7 @@ if __name__ == "__main__":
         num_steps=args.num_steps,
         style_weight=args.style_weight,
         content_weight=args.content_weight,
+        tv_weight=args.tv_weight,
         output_resolution=args.output_resolution
     )
 

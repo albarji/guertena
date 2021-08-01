@@ -15,7 +15,7 @@ from neuralstyle.styletransfernet import StyleTransferNet, get_device
 
 
 def style_transfer(content_img, style_img, num_steps=500, style_weight=1000000, content_weight=1,
-    output_resolution=None):
+    tv_weight=1, output_resolution=None):
     """Run the style transfer"""
     # Format input images
     logging.info(f"Loaded content image size: {np.array(content_img).shape[:2]}")
@@ -27,9 +27,12 @@ def style_transfer(content_img, style_img, num_steps=500, style_weight=1000000, 
     logging.info(f"Preprocessed style image size: {tuple(content_img.shape[2:])}")
 
     # Initialize style network
-    style_network = StyleTransferNet(content_img, style_img, content_weight, style_weight).to(get_device())
+    style_network = StyleTransferNet(content_img, style_img, content_weight, style_weight, tv_weight).to(get_device())
     # Initialize synthetic image with content image
     input_img = deepcopy(content_img).to(get_device())
+    # Alternatively, initialize synthetic image with random image
+    #torch.manual_seed(12345)
+    #input_img = torch.rand(content_img.shape).to(get_device())
 
     optimizer = optim.LBFGS([input_img.requires_grad_()], tolerance_grad=0, line_search_fn="strong_wolfe")
     #optimizer = optim.Adam([input_img.requires_grad_()])
@@ -50,13 +53,14 @@ def style_transfer(content_img, style_img, num_steps=500, style_weight=1000000, 
                 style_score += sl.loss
             for cl in style_network.content_losses:
                 content_score += cl.loss
+            tv_score = style_network.tv_loss.loss
 
-            loss = style_score + content_score
+            loss = style_score + content_score + tv_score
             loss.backward()
 
             run[0] += 1
             if run[0] % 50 == 0:
-                logging.info(f'Step: {run[0]}, Style Loss: {style_score.item():6f}, Content Loss: {content_score.item():6f}, Total Loss: {loss.item():6f}')
+                logging.info(f'Step: {run[0]}, Style Loss: {style_score.item():6f}, Content Loss: {content_score.item():6f}, TV Loss: {tv_score.item():6f}, Total Loss: {loss.item():6f}')
 
             return style_score + content_score
 

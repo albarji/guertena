@@ -24,7 +24,7 @@ class StyleTransferNet(torch.nn.Module):
     content_layers_default = ['conv_4']
     style_layers_default = ['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']
 
-    def __init__(self, content_img, style_img, content_weight, style_weight):
+    def __init__(self, content_img, style_img, content_weight, style_weight, tv_weight):
         super(StyleTransferNet, self).__init__()
         # Initialize VGG19 reference architecture
         cnn = models.vgg19(pretrained=True).features.to(get_device()).eval()
@@ -32,6 +32,10 @@ class StyleTransferNet(torch.nn.Module):
         # Start with image normalization layer
         normalization = Normalization(self.vgg19_normalization_mean, self.vgg19_normalization_std)
         self.model = nn.Sequential(normalization)
+
+        # Add TV loss layer
+        self.tv_loss = TVLoss(tv_weight)
+        self.model.add_module("tv_loss", self.tv_loss)
 
         # Add VGG19 layers, with added losses
         self.content_losses = []
@@ -133,6 +137,20 @@ class StyleLoss(nn.Module):
         G = gram_matrix(input)
         #self.loss = ScaleGradients.apply(F.mse_loss(G, self.target), self.style_weight) * self.style_weight
         self.loss = F.mse_loss(G, self.target) * self.style_weight
+        return input
+
+
+class TVLoss(nn.Module):
+    """Total Variation loss: penalizes neighbouring with different values"""
+
+    def __init__(self, strength):
+        super(TVLoss, self).__init__()
+        self.strength = strength
+
+    def forward(self, input):
+        self.x_diff = input[:,:,1:,:] - input[:,:,:-1,:]
+        self.y_diff = input[:,:,:,1:] - input[:,:,:,:-1]
+        self.loss = self.strength / torch.numel(input) * (torch.sum(torch.abs(self.x_diff)) + torch.sum(torch.abs(self.y_diff)))
         return input
 
 
