@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+from neuralstyle.driver import style_transfer_multiresolution
 from PIL import Image, ImageOps
 
 from neuralstyle import style_transfer
@@ -27,16 +28,29 @@ if __name__ == "__main__":
                         help='Weight of the total variation loss')
     parser.add_argument('--output_resolution', type=str, default=None,
                         help='Resolution of output image, in format ROWSxCOLUMNS')
+    parser.add_argument('--strategy', type=str, default="single-pass", choices=['single-pass', 'multiresolution'],
+                        help='Strategy to generate the image')
     args = parser.parse_args()
 
-    result = style_transfer(
-        content_img=ImageOps.exif_transpose(Image.open(args.content)),
-        style_img=ImageOps.exif_transpose(Image.open(args.style)),
-        num_steps=args.num_steps,
-        style_weight=args.style_weight,
-        content_weight=args.content_weight,
-        tv_weight=args.tv_weight,
-        output_resolution=args.output_resolution
-    )
+    if args.strategy == "single-pass":
+        result = style_transfer(
+            content_img=ImageOps.exif_transpose(Image.open(args.content)),
+            style_img=ImageOps.exif_transpose(Image.open(args.style)),
+            num_steps=args.num_steps,
+            style_weight=args.style_weight,
+            content_weight=args.content_weight,
+            tv_weight=args.tv_weight,
+            output_resolution=args.output_resolution
+        )
+    else:
+        result = style_transfer_multiresolution(
+            content_img=ImageOps.exif_transpose(Image.open(args.content)),
+            style_img=ImageOps.exif_transpose(Image.open(args.style)),
+            num_steps=args.num_steps,
+            style_weight=args.style_weight,
+            content_weight=args.content_weight,
+            tv_weight=args.tv_weight,
+            output_resolution=args.output_resolution
+        )
 
     result.save(args.output)
