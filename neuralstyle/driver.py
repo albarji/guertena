@@ -7,6 +7,7 @@ References:
 from copy import deepcopy
 import logging
 import numpy as np
+import torch
 import torch.optim as optim
 import torchvision.transforms as transforms
 
@@ -39,6 +40,7 @@ def style_transfer(content_img, style_img, num_steps=500, style_weight=1000000, 
 
     # Initialize synthetic image
     input_img = deepcopy(init_img if init_img is not None else content_img).to(get_device())
+    #input_img = deepcopy(init_img if init_img is not None else torch.randn(content_img.data.size())).to(get_device())
 
     # Prepare optimizer
     optimizer = optim.LBFGS([input_img.requires_grad_()], tolerance_grad=0, line_search_fn="strong_wolfe")
@@ -80,7 +82,7 @@ def style_transfer(content_img, style_img, num_steps=500, style_weight=1000000, 
 
 
 def style_transfer_multiresolution(content_img, style_img, num_steps=1000, style_weight=1000000, content_weight=1,
-    tv_weight=0, output_resolution=None, num_rounds=5, upscales_per_round=7, starting_resolution=256):
+    tv_weight=0, output_resolution=None, num_rounds=1, upscales_per_round=7, starting_resolution=256):
     """Runs a multiresolution version of style transfer, much lower but of better quality"""
     logging.info("Starting multiresolution strategy")
     # Check arguments
@@ -93,21 +95,21 @@ def style_transfer_multiresolution(content_img, style_img, num_steps=1000, style
     seed = None
     for round in range(num_rounds):
         logging.info(f"Multiresolution strategy round {round}")
+        iterations = num_steps
         resolutions = np.linspace(starting_resolution, output_shape[0], upscales_per_round, dtype=int)
-        iters = num_steps
         for stepnumber, res in enumerate(resolutions):
             logging.info(f"Multiresolution round {round} step {stepnumber}: upscaling to resolution {res}")
             seed = style_transfer(
                 content_img, 
                 style_img, 
-                iters, 
+                iterations, 
                 style_weight, 
                 content_weight, 
                 tv_weight,
                 output_resolution=res,
                 init_img=seed
             )
-            iters = max(iters / 2, 100)
+            # iterations = max(iterations / 2, 100)
 
     return seed
 

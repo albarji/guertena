@@ -30,6 +30,8 @@ if __name__ == "__main__":
                         help='Resolution of output image, in format ROWSxCOLUMNS')
     parser.add_argument('--strategy', type=str, default="single-pass", choices=['single-pass', 'multiresolution'],
                         help='Strategy to generate the image')
+    parser.add_argument('--num_rounds', type=int, default=1,
+                        help='Number of rounds for the multiresolution strategy.')
     args = parser.parse_args()
 
     if args.strategy == "single-pass":
@@ -50,7 +52,8 @@ if __name__ == "__main__":
             style_weight=args.style_weight,
             content_weight=args.content_weight,
             tv_weight=args.tv_weight,
-            output_resolution=args.output_resolution
+            output_resolution=args.output_resolution,
+            num_rounds=args.num_rounds
         )
 
     result.save(args.output)
