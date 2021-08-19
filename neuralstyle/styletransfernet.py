@@ -3,8 +3,10 @@
 References:
     - Gatys et al. - A Neural Algorithm of Artistic Style - https://arxiv.org/abs/1508.06576
     - Pytorch Neural Style tutorial: https://pytorch.org/tutorials/advanced/neural_style_tutorial.html
+    - Torch implementation by jcjohnson https://github.com/jcjohnson/neural-style
     - Pytorch implementation by ProGamerGov https://github.com/ProGamerGov/neural-style-pt
 """
+from collections.abc import Iterable
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -21,11 +23,26 @@ class StyleTransferNet(torch.nn.Module):
     """Neural network that implements the style transfer algorithm of Gatys"""
     vgg19_normalization_mean = torch.tensor([0.485, 0.456, 0.406]).to(get_device())
     vgg19_normalization_std = torch.tensor([0.229, 0.224, 0.225]).to(get_device())
-    content_layers_default = ['conv_4']
-    style_layers_default = ['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']
+    #content_layers_default = ['conv_4']
+    content_layers_default = ['conv_10']  # Block 4, convolution 2
+    #content_layers_default = ['relu_10']  # Block 4, convolution 2 (Gatys original)
+    #style_layers_default = ['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']
+    style_layers_default = ['conv_1', 'conv_3', 'conv_5', 'conv_9', 'conv_13']  # First convolution from each block
+    #style_layers_default = ['relu_1', 'relu_3', 'relu_5', 'relu_9', 'relu_13']  # First convolution from each block (Gatys original)
 
-    def __init__(self, content_img, style_img, content_weight, style_weight, tv_weight):
+    def __init__(self, content_img, style_img, content_weight, style_weight, tv_weight, content_layers=None, style_layers=None):
         super(StyleTransferNet, self).__init__()
+
+        # Check inputs
+        if content_layers is None:
+            content_layers = list(self.content_layers_default)
+        else:
+            assert isinstance(content_layers, Iterable) and all([isinstance(x, str) for x in content_layers]), ValueError(f"content_layers must be a list of layer names, got {content_layers}")
+        if style_layers is None:
+            style_layers = list(self.style_layers_default)
+        else:
+            assert isinstance(style_layers, Iterable) and all([isinstance(x, str) for x in style_layers]), ValueError(f"style_layers must be a list of layer names, got {style_layers}")
+
         # Initialize VGG19 reference architecture
         cnn = models.vgg19(pretrained=True).features.to(get_device()).eval()
 
@@ -60,14 +77,14 @@ class StyleTransferNet(torch.nn.Module):
 
             self.model.add_module(name, layer)
 
-            if name in self.content_layers_default:
+            if name in content_layers:
                 # add content loss:
                 target = self.model(content_img).detach()
                 content_loss = ContentLoss(target, content_weight)
                 self.model.add_module("content_loss_{}".format(i), content_loss)
                 self.content_losses.append(content_loss)
 
-            if name in self.style_layers_default:
+            if name in style_layers:
                 # add style loss:
                 target_feature = self.model(style_img).detach()
                 style_loss = StyleLoss(target_feature, style_weight)
@@ -108,6 +125,7 @@ class ContentLoss(nn.Module):
 
     def forward(self, input):
         #self.loss = ScaleGradients.apply(F.mse_loss(input, self.target), self.content_weight) * self.content_weight
+        # Note original Gatys paper loss is sum * 1/2 * weight, while this is mean * weight, but this implementation is compatible with jcjohnson
         self.loss = F.mse_loss(input, self.target) * self.content_weight
         return input
 
@@ -123,6 +141,7 @@ def gram_matrix(input):
 
     # we 'normalize' the values of the gram matrix
     # by dividing by the number of element in each feature maps.
+    # Note in Gatys paper this normalization is done in the loss, not here, but it's equivalent
     return G.div(a * b * c * d)
 
 
@@ -136,6 +155,7 @@ class StyleLoss(nn.Module):
     def forward(self, input):
         G = gram_matrix(input)
         #self.loss = ScaleGradients.apply(F.mse_loss(G, self.target), self.style_weight) * self.style_weight
+        # Note original Gatys paper loss is sum * 1/4 * weight, while this is mean * weight, but this implementation is compatible with jcjohnson
         self.loss = F.mse_loss(G, self.target) * self.style_weight
         return input
 

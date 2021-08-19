@@ -14,10 +14,27 @@ import torchvision.transforms as transforms
 from neuralstyle.styletransfernet import StyleTransferNet, get_device
 
 
-def style_transfer(content_img, style_img, num_steps=500, style_weight=1000000, content_weight=1,
-    tv_weight=1, output_resolution=None, init_img=None):
-    """Run the style transfer"""
+def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e6, content_weight=1,
+    tv_weight=1, output_resolution=None, init_img=None, content_layers=None, style_layers=None):
+    """Runs a style transfer pass using Gatys method
+    
+    Arguments:
+        content_img: original content image on which to apply style transfer. Image must be in PIL format.
+        style_img: image with the style to transfer. Image must be in PIL format.
+        num_steps: number of optimizer iterations to run
+        style_weight: weight of the style loss in the optimization
+        content_weight: weight of the content loss in the optimization
+        tv_weight: weight of the Total Variation loss in the optimization
+        output_resolution: desired resolution of the resultant image.
+            Must be in format 'COLUMNS' or 'COLUMNSxROWS' (e.g. 640 or 640x480)
+        init_img: image to initialize the optimization procedure. Must be a PIL image. If None, use content image.
+        content_layers: iterable of VGG19 layers names into which to impose content losses. If None, a default choice is used.
+        style_layers: iterable of VGG19 layers names into which to impose content losses. If None, a default choice is used.
+    
+    Returns a PIL image with the result of the style transfer.
+    """
     # Format input images
+    logging.info(f"Starting style transfer pass...")
     logging.info(f"Received content image size: {np.array(content_img).shape[:2]}")
     logging.info(f"Received style image size: {np.array(style_img).shape[:2]}")
     if init_img is not None:
@@ -36,7 +53,8 @@ def style_transfer(content_img, style_img, num_steps=500, style_weight=1000000, 
         logging.info(f"Preprocessed initialization image size: {tuple(init_img.shape[2:])}")
 
     # Initialize style network
-    style_network = StyleTransferNet(content_img, style_img, content_weight, style_weight, tv_weight).to(get_device())
+    style_network = StyleTransferNet(content_img, style_img, content_weight, style_weight, tv_weight, content_layers, style_layers).to(get_device())
+    logging.info(f"StyleTransferNet created by the following architecture:\n{style_network.model}")
 
     # Initialize synthetic image
     input_img = deepcopy(init_img if init_img is not None else content_img).to(get_device())
@@ -59,7 +77,7 @@ def style_transfer(content_img, style_img, num_steps=500, style_weight=1000000, 
             content_score = 0
 
             for sl in style_network.style_losses:
-                style_score += sl.loss
+                style_score += sl.loss  # TODO: in Gatys the different styles losses are averaged, not summed
             for cl in style_network.content_losses:
                 content_score += cl.loss
             tv_score = style_network.tv_loss.loss
@@ -81,10 +99,44 @@ def style_transfer(content_img, style_img, num_steps=500, style_weight=1000000, 
     return _format_output_image(input_img)
 
 
-def style_transfer_multiresolution(content_img, style_img, num_steps=1000, style_weight=1000000, content_weight=1,
-    tv_weight=0, output_resolution=None, num_rounds=1, upscales_per_round=7, starting_resolution=256):
-    """Runs a multiresolution version of style transfer, much lower but of better quality"""
-    logging.info("Starting multiresolution strategy")
+def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000, content_weight=1,
+    tv_weight=0, output_resolution=None, content_layers=None, style_layers=None, upscaling_rounds=1, 
+    upscales_per_round=7, starting_resolution=256):
+    """Transfers the style from one image to another.
+    
+    Arguments:
+        content_img: original content image on which to apply style transfer. Image must be in PIL format.
+        style_img: image with the style to transfer. Image must be in PIL format.
+        num_steps: number of optimizer iterations to run
+        style_weight: weight of the style loss in the optimization
+        content_weight: weight of the content loss in the optimization
+        tv_weight: weight of the Total Variation loss in the optimization
+        output_resolution: desired resolution of the resultant image.
+            Must be in format 'COLUMNS' or 'COLUMNSxROWS' (e.g. 640 or 640x480)
+        init_img: image to initialize the optimization procedure. Must be a PIL image. If None, use content image.
+        content_layers: iterable of VGG19 layers names into which to impose content losses. If None, a default choice is used.
+        style_layers: iterable of VGG19 layers names into which to impose content losses. If None, a default choice is used.
+        upscaling_rounds: number of upscaling rounds to perform. If 0 or None, the transfer is directly performed at
+            target resolution, which is faster but yields poorer quality.
+        upscales_per_round: number of upscaling steps to perform in each upscaling round.
+        starting_resolution: resolution at which to start upscaling steps.
+    
+    Returns a PIL image with the result of the style transfer.
+    """
+    # If 0 or None rounds, just performe a simple pass
+    if upscaling_rounds is None or upscaling_rounds == 0:
+        return _style_transfer_pass(
+            content_img, 
+            style_img, 
+            num_steps, 
+            style_weight, 
+            content_weight, 
+            tv_weight,
+            output_resolution=output_resolution,
+            content_layers=content_layers,
+            style_layers=style_layers
+        )
+
     # Check arguments
     output_shape = _get_target_shape(content_img, output_resolution)
     if starting_resolution > output_shape[0]:
@@ -93,13 +145,13 @@ def style_transfer_multiresolution(content_img, style_img, num_steps=1000, style
 
     # Multiresolution rounds
     seed = None
-    for round in range(num_rounds):
-        logging.info(f"Multiresolution strategy round {round}")
+    for round in range(upscaling_rounds):
+        logging.info(f"Upscaling strategy round {round}")
         iterations = num_steps
         resolutions = np.linspace(starting_resolution, output_shape[0], upscales_per_round, dtype=int)
         for stepnumber, res in enumerate(resolutions):
-            logging.info(f"Multiresolution round {round} step {stepnumber}: upscaling to resolution {res}")
-            seed = style_transfer(
+            logging.info(f"Upscaling round {round} step {stepnumber}: upscaling to resolution {res}")
+            seed = _style_transfer_pass(
                 content_img, 
                 style_img, 
                 iterations, 
@@ -107,7 +159,9 @@ def style_transfer_multiresolution(content_img, style_img, num_steps=1000, style
                 content_weight, 
                 tv_weight,
                 output_resolution=res,
-                init_img=seed
+                init_img=seed,
+                content_layers=content_layers,
+                style_layers=style_layers
             )
             # iterations = max(iterations / 2, 100)
 
