@@ -23,7 +23,9 @@ Guertena is an easy to use, quality oriented python library for neural style tra
         'Environment :: GPU :: NVIDIA CUDA',
         'Intended Audience :: Science/Research',
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Topic :: Artistic Software',
         'Topic :: Multimedia :: Graphics'
     ],
