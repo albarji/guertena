@@ -185,7 +185,7 @@ def _get_target_shape(content_img, output_resolution=None):
         except:
             raise ValueError("Output resolution must be in format 'COLUMNS' or 'COLUMNSxROWS' (e.g. 640 or 640x480")
     else:
-        output_shape = np.array(content_img).size
+        output_shape = np.array(content_img).shape[0:2]
     return output_shape
 
 
