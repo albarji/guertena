@@ -1,1 +1,0 @@
-from neuralstyle.driver import style_transfer

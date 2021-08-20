@@ -4,7 +4,7 @@ import argparse
 import logging
 from PIL import Image, ImageOps
 
-from neuralstyle import style_transfer
+from guertena import style_transfer
 
 logging.basicConfig(
     level=logging.INFO,

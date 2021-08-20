@@ -1,19 +1,22 @@
 from setuptools import setup
 
 
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
+
+
 setup(
     name="guertena",
     version="0.0.1",
     description="Guertena is an easy to use, quality oriented python library for neural style transfer.",
-    long_description="""
-Guertena is an easy to use, quality oriented python library for neural style transfer.
-""",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     packages=['guertena'],
     install_requires=[
-        'cudatoolkit',
-        'numpy=1.20.*',
-        'pytorch=1.9.*',
-        'torchvision=0.10.*'
+        'cudatoolkit>=10',
+        'numpy>=1.20,<2',
+        'pytorch>=1.9,<2',
+        'torchvision>=0.10,<1'
     ],
     author="Alvaro Barbero",
     url='https://github.com/albarji/guertena',
@@ -30,6 +33,6 @@ Guertena is an easy to use, quality oriented python library for neural style tra
         'Topic :: Artistic Software',
         'Topic :: Multimedia :: Graphics'
     ],
-    keywords='neural style transfer',
+    keywords='artificial-intelligence, deep-learning, neural-style-transfer',
     test_suite="pytest",
 )

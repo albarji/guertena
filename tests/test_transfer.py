@@ -2,7 +2,7 @@
 
 from PIL import Image
 
-from neuralstyle.driver import style_transfer
+from guertena import style_transfer
 
 def test_style_transfer():
     data_folder = "./tests/data"

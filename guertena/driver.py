@@ -11,7 +11,7 @@ import torch
 import torch.optim as optim
 import torchvision.transforms as transforms
 
-from neuralstyle.styletransfernet import StyleTransferNet, get_device
+from .styletransfernet import StyleTransferNet, get_device
 
 
 def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e6, content_weight=1,
@@ -64,7 +64,7 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
     optimizer = optim.LBFGS([input_img.requires_grad_()], tolerance_grad=0, line_search_fn="strong_wolfe")
     #optimizer = optim.Adam([input_img.requires_grad_()])
 
-    print('Optimizing...')
+    logging.info('Optimizing...')
     run = [0]
     while run[0] <= num_steps:
         def closure():
