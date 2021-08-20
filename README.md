@@ -1,5 +1,3 @@
-# Guertena
-
 <div align="center">
   <img src="docs/img/guertenaLogo.png" height="300"><br>
 </div>
@@ -7,11 +5,11 @@
 > It's said that spirits dwell in objects into which people put their feelings. I've always thought that, if that’s true, then the same must be true of artwork. So today, I shall immerse myself in work, so as to impart my own spirit into my creations.
 > (Weiss Guertena)
 
----
-
 Guertena is an easy to use, quality oriented python library for neural style transfer.
 
-**NOTE: THIS IS STILL WORK IN PROGRESS"
+**NOTE: THIS IS STILL WORK IN PROGRESS**
+
+![Unit tests badge](https://github.com/albarji/guertena/actions/workflows/tests.yml/badge.svg)
 
 ## Usage
 
@@ -113,4 +111,9 @@ Guertena builds on many previous methods and implementations of neural style tra
 
 ## Acknowledgements and disclaimers
 
-In case you are wondering, the name Guertena and the opening quote come from the excellent albeit obscure indie game [Ib](https://vgperson.com/games/ib.htm). I'm not related to it's creator ([kouri](http://kouri.kuchinawa.com/)) nor claim any rights. Just wanted to pay homage to his work.
+The author acknowledges partial financial support (in the form of GPU time) from the following research projects:
+
+* PID2019-106827GB-I00 / AEI / 10.13039/501100011033
+* European Regional Development Fund and Spanish Ministry of Economy, Industry, and Competitiveness - State Research Agency, project TIN2016-76406-P (AEI/FEDER, UE).
+
+And in case you are wondering, the name *Guertena* and the opening quote come from the excellent, albeit obscure, indie game [Ib](https://vgperson.com/games/ib.htm). I'm not related to it's creator ([kouri](http://kouri.kuchinawa.com/)) nor claim any rights. I'm just a fan of hiw work and wanted to pay homage.
