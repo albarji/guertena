@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/img/guertenaLogo.png" height="300"><br>
+  <img src="https://raw.githubusercontent.com/albarji/guertena/master/docs/img/guertenaLogo.png" height="300"><br>
 </div>
 
 > It's said that spirits dwell in objects into which people put their feelings. I've always thought that, if that’s true, then the same must be true of artwork. So today, I shall immerse myself in work, so as to impart my own spirit into my creations.

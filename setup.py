@@ -1,15 +1,21 @@
+import os
 from setuptools import setup
 
 
+# Read long description from readme
 with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+    LONG_DESCRIPTION = fh.read()
+
+
+# Get tag from Github environment variables
+TAG = os.environ['GITHUB_TAG'] if 'GITHUB_TAG' in os.environ else None
 
 
 setup(
     name="guertena",
-    version="0.0.1",
+    version=TAG if TAG is not None else "develop",
     description="Guertena is an easy to use, quality oriented python library for neural style transfer.",
-    long_description=long_description,
+    long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
     packages=['guertena'],
     install_requires=[

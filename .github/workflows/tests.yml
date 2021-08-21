@@ -3,7 +3,7 @@ name: Unit tests
 on: [push]
 
 jobs:
-  test-environment:
+  unit-tests:
     runs-on: ${{ matrix.os }}
     strategy:
       max-parallel: 5
