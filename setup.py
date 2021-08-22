@@ -19,7 +19,7 @@ setup(
     long_description_content_type="text/markdown",
     packages=['guertena'],
     install_requires=[
-        'numpy>=1.20,<2',
+        'numpy>=1.19,<2',
         'torch>=1.9,<2',
         'torchvision>=0.10,<1'
     ],
