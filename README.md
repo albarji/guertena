@@ -2,12 +2,13 @@
   <img src="https://raw.githubusercontent.com/albarji/guertena/master/docs/img/guertenaLogo.png" height="300"><br>
 </div>
 
-> It's said that spirits dwell in objects into which people put their feelings. I've always thought that, if that’s true, then the same must be true of artwork. So today, I shall immerse myself in work, so as to impart my own spirit into my creations.
-> (Weiss Guertena)
+> It's said that spirits dwell in objects into which people put their feelings. I've always thought that, if that’s true, then the same must be true of artwork. So today, I shall immerse myself in work, so as to impart my own spirit into my creations.  
+> -- Weiss Guertena
 
 Guertena is an easy to use, quality oriented python library for neural style transfer.
 
 ![Unit tests badge](https://github.com/albarji/guertena/actions/workflows/tests.yml/badge.svg)
+![Packaging badge](https://github.com/albarji/guertena/actions/workflows/publish.yml/badge.svg)
 
 ## Guertena the fast way
 
