@@ -19,7 +19,6 @@ setup(
     long_description_content_type="text/markdown",
     packages=['guertena'],
     install_requires=[
-        'cudatoolkit>=10',
         'numpy>=1.20,<2',
         'pytorch>=1.9,<2',
         'torchvision>=0.10,<1'
