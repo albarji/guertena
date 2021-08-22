@@ -20,7 +20,7 @@ setup(
     packages=['guertena'],
     install_requires=[
         'numpy>=1.20,<2',
-        'pytorch>=1.9,<2',
+        'torch>=1.9,<2',
         'torchvision>=0.10,<1'
     ],
     author="Alvaro Barbero",
