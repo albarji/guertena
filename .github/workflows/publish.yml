@@ -30,42 +30,11 @@ jobs:
         user: __token__
         password: ${{ secrets.TESTPYPI_API_TOKEN }}
 
-  test-package-download:
-    runs-on: ubuntu-latest
-    name: test package works by installing from test-PyPI
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
-    needs: test-publish-package
-
-    steps:
-    - uses: actions/checkout@v2
-
-    - name: Install dependencies
-      run: |
-        conda env update --file environment.yml --name base
-
-    - name: Erase everything but tests folder
-      run: |
-        rm -rf docs guertena 
-    - name: Setup conda
-      uses: s-weigand/setup-conda@v1
-
-    - name: Get release tag
-      id: tag
-      uses: dawidd6/action-get-tag@v1
-
-    - name: Install package
-      run: |
-        python -m pip install --index-url https://test.pypi.org/simple/ --no-deps guertena==${{steps.tag.outputs.tag}}
-
-    - name: Run unit tests
-      run: |
-        conda install pytest && pytest tests
-
   publish-package:
     runs-on: ubuntu-latest
     name: publish package on PyPI
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
-    needs: test-package-download
+    needs: test-publish-package
 
     steps:
     - uses: actions/checkout@v2
@@ -87,3 +56,32 @@ jobs:
       with:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
+
+  test-package-download:
+    runs-on: ubuntu-latest
+    name: test package works by installing from test-PyPI
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+    needs: publish-package
+
+    steps:
+    - name: Download tests
+      uses: actions/checkout@v2
+
+    - name: Erase source code
+      run: |
+        rm -rf docs guertena
+
+    - name: Setup conda
+      uses: s-weigand/setup-conda@v1
+
+    - name: Get release tag
+      id: tag
+      uses: dawidd6/action-get-tag@v1
+
+    - name: Install package
+      run: |
+        python -m pip install guertena==${{steps.tag.outputs.tag}}
+
+    - name: Run unit tests
+      run: |
+        conda install pytest && pytest tests
