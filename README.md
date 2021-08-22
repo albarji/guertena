@@ -7,11 +7,13 @@
 
 Guertena is an easy to use, quality oriented python library for neural style transfer.
 
-**NOTE: THIS IS STILL WORK IN PROGRESS**
-
 ![Unit tests badge](https://github.com/albarji/guertena/actions/workflows/tests.yml/badge.svg)
 
-## Usage
+## Guertena the fast way
+
+Just follow [this tutorial on Google Colab](https://colab.research.google.com/drive/1jvQx95EDjBMak34e12-KYfZd_4Td2Z5t?usp=sharing) to learn how to use Guertena easily.
+
+## Installing Guertena
 
 ### Prerequisites
 
@@ -27,7 +29,7 @@ To install guertena just run
 pip install guertena
 ```
 
-### Simple usage
+## Usage
 
 Suppose you have a content image located at the current folder and named `myphoto.png` and you want to transfer the style contained in another picture `style.png`, also located in the current folder. First you will need to load these images with PIL
 
@@ -76,10 +78,7 @@ If the style transfer results do not look good there are several parameters you 
 
 Guertena is mainly based on the Neural Style Transfer algorithm by [Leon A. Gatys, Alexander S. Ecker and Matthias Bethge](https://arxiv.org/abs/1508.06576). In this method, the image $x$ to be produced tries to minimize the following cost function
 
-$min_x \quad \lambda_{content} L_{content}(x, c) + \lambda_{style} L_{style}(x, s) + \lambda_{TV} TV(x)$
-
-<!-- <img src="https://render.githubusercontent.com/render/math?math=\Huge \min_x \lambda_{content} L_{content}(x, c) %2B \lambda_{style} L_{style}(x, s) %2B \lambda_{TV} TV(x)">
--->
+<img src="https://render.githubusercontent.com/render/math?math=\Huge \min_x \lambda_{content} L_{content}(x, c) %2B \lambda_{style} L_{style}(x, s) %2B \lambda_{TV} TV(x)">
 
 that is, the product image must minimize three different criteria:
 
@@ -111,9 +110,11 @@ Guertena builds on many previous methods and implementations of neural style tra
 
 ## Acknowledgements and disclaimers
 
-The author acknowledges partial financial support (in the form of GPU time) from the following research projects:
+The author acknowledges partial financial support (in the form of GPU time) from the following research projects and institutions:
 
 * PID2019-106827GB-I00 / AEI / 10.13039/501100011033
 * European Regional Development Fund and Spanish Ministry of Economy, Industry, and Competitiveness - State Research Agency, project TIN2016-76406-P (AEI/FEDER, UE).
+* Grupo de Aprendizaje Autómatico (GAA), Universidad Autónoma de Madrid (UAM)
+* Instituto de Ingeniería del Conocimiento (IIC)
 
 And in case you are wondering, the name *Guertena* and the opening quote come from the excellent, albeit obscure, indie game [Ib](https://vgperson.com/games/ib.htm). I'm not related to it's creator ([kouri](http://kouri.kuchinawa.com/)) nor claim any rights. I'm just a fan of hiw work and wanted to pay homage.

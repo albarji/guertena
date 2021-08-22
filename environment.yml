@@ -1,4 +1,4 @@
-name: neural-style
+name: guertena
 channels:
   - pytorch
   - nvidia
