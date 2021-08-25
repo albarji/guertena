@@ -21,7 +21,8 @@ setup(
     install_requires=[
         'numpy>=1.19,<2',
         'torch>=1.9,<2',
-        'torchvision>=0.10,<1'
+        'torchvision>=0.10,<1',
+        'tqdm>=4.62,<5'
     ],
     author="Alvaro Barbero",
     url='https://github.com/albarji/guertena',

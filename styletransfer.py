@@ -33,6 +33,8 @@ if __name__ == "__main__":
                         help='Number of gradient descent iterations')
     parser.add_argument('--upscaling_rounds', type=int, default=1,
                         help='Number of resolution upscaling rounds.')
+    parser.add_argument('--verbosity', type=int, default=0,
+                        help='Verbosity level, from 0 to 2')
     args = parser.parse_args()
 
     if args.content_layers is not None:
@@ -50,7 +52,8 @@ if __name__ == "__main__":
         output_resolution=args.output_resolution,
         content_layers=args.content_layers,
         style_layers=args.style_layers,
-        upscaling_rounds=args.upscaling_rounds
+        upscaling_rounds=args.upscaling_rounds,
+        verbosity=args.verbosity
     )
 
     result.save(args.output)

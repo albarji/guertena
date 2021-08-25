@@ -7,15 +7,16 @@ References:
 from copy import deepcopy
 import logging
 import numpy as np
-import torch
 import torch.optim as optim
 import torchvision.transforms as transforms
+from tqdm import tqdm
 
 from .styletransfernet import StyleTransferNet, get_device
 
 
 def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e6, content_weight=1,
-    tv_weight=1, output_resolution=None, init_img=None, content_layers=None, style_layers=None):
+    tv_weight=1, output_resolution=None, init_img=None, content_layers=None, style_layers=None,
+    verbosity=0):
     """Runs a style transfer pass using Gatys method
     
     Arguments:
@@ -30,31 +31,32 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
         init_img: image to initialize the optimization procedure. Must be a PIL image. If None, use content image.
         content_layers: iterable of VGG19 layers names into which to impose content losses. If None, a default choice is used.
         style_layers: iterable of VGG19 layers names into which to impose content losses. If None, a default choice is used.
+        verbosity: level of verbosity during style transfer, from 0 to 2.
     
     Returns a PIL image with the result of the style transfer.
     """
     # Format input images
-    logging.info(f"Starting style transfer pass...")
-    logging.info(f"Received content image size: {np.array(content_img).shape[:2]}")
-    logging.info(f"Received style image size: {np.array(style_img).shape[:2]}")
+    logging.debug(f"Starting style transfer pass...")
+    logging.debug(f"Received content image size: {np.array(content_img).shape[:2]}")
+    logging.debug(f"Received style image size: {np.array(style_img).shape[:2]}")
     if init_img is not None:
-        logging.info(f"Received initialization image size: {np.array(init_img).shape[:2]}")
+        logging.debug(f"Received initialization image size: {np.array(init_img).shape[:2]}")
     if output_resolution:
-        logging.info(f"Preparing for output resolution {output_resolution}")
+        logging.debug(f"Preparing for output resolution {output_resolution}")
     content_img, style_img, init_img = _format_input_images(
         content_img,
         style_img,
         init_img,
         output_resolution
     )
-    logging.info(f"Preprocessed content image size: {tuple(content_img.shape[2:])}")
-    logging.info(f"Preprocessed style image size: {tuple(content_img.shape[2:])}")
+    logging.debug(f"Preprocessed content image size: {tuple(content_img.shape[2:])}")
+    logging.debug(f"Preprocessed style image size: {tuple(content_img.shape[2:])}")
     if init_img is not None:
-        logging.info(f"Preprocessed initialization image size: {tuple(init_img.shape[2:])}")
+        logging.debug(f"Preprocessed initialization image size: {tuple(init_img.shape[2:])}")
 
     # Initialize style network
     style_network = StyleTransferNet(content_img, style_img, content_weight, style_weight, tv_weight, content_layers, style_layers).to(get_device())
-    logging.info(f"StyleTransferNet created by the following architecture:\n{style_network.model}")
+    logging.debug(f"StyleTransferNet created by the following architecture:\n{style_network.model}")
 
     # Initialize synthetic image
     input_img = deepcopy(init_img if init_img is not None else content_img).to(get_device())
@@ -62,14 +64,13 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
 
     # Prepare optimizer
     optimizer = optim.LBFGS([input_img.requires_grad_()], tolerance_grad=0, line_search_fn="strong_wolfe")
-    #optimizer = optim.Adam([input_img.requires_grad_()])
 
-    logging.info('Optimizing...')
+    logging.debug('Optimizing...')
+    pbar = tqdm(total=num_steps, disable=verbosity==0)
     run = [0]
     while run[0] <= num_steps:
         def closure():
             # correct the values of updated input image
-            # input_img.data.clamp_(0, 1)  # FIXME: not sure if this is helping. Produces training divergence
 
             optimizer.zero_grad()
             style_network(input_img)
@@ -77,7 +78,7 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
             content_score = 0
 
             for sl in style_network.style_losses:
-                style_score += sl.loss  # TODO: in Gatys the different styles losses are averaged, not summed
+                style_score += sl.loss  # Note in Gatys the different styles losses are averaged, not summed, but this follows jcjohnson implementation
             for cl in style_network.content_losses:
                 content_score += cl.loss
             tv_score = style_network.tv_loss.loss
@@ -86,12 +87,14 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
             loss.backward()
 
             run[0] += 1
+            pbar.update(1)
             if run[0] % 50 == 0:
-                logging.info(f'Step: {run[0]}, Style Loss: {style_score.item():6f}, Content Loss: {content_score.item():6f}, TV Loss: {tv_score.item():6f}, Total Loss: {loss.item():6f}')
+                logging.debug(f'Step: {run[0]}, Style Loss: {style_score.item():6f}, Content Loss: {content_score.item():6f}, TV Loss: {tv_score.item():6f}, Total Loss: {loss.item():6f}')
 
-            return style_score + content_score
+            return loss
 
         optimizer.step(closure)
+    pbar.close()
 
     # a last correction...
     input_img.data.clamp_(0, 1)
@@ -101,7 +104,7 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
 
 def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000, content_weight=1,
     tv_weight=0, output_resolution=None, content_layers=None, style_layers=None, upscaling_rounds=1, 
-    upscales_per_round=7, starting_resolution=256):
+    upscales_per_round=7, starting_resolution=256, verbosity=0):
     """Transfers the style from one image to another.
     
     Arguments:
@@ -120,9 +123,14 @@ def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000,
             target resolution, which is faster but yields poorer quality.
         upscales_per_round: number of upscaling steps to perform in each upscaling round.
         starting_resolution: resolution at which to start upscaling steps.
+        verbosity: level of verbosity during style transfer, from 0 to 2
     
     Returns a PIL image with the result of the style transfer.
     """
+    # Set verbosity
+    assert 0 <= verbosity <= 2, ValueError("Verbosity must be an int between 0 and 2")
+    logging.getLogger().setLevel([logging.ERROR, logging.INFO, logging.DEBUG][verbosity])
+
     # If 0 or None rounds, just performe a simple pass
     if upscaling_rounds is None or upscaling_rounds == 0:
         return _style_transfer_pass(
@@ -134,7 +142,8 @@ def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000,
             tv_weight,
             output_resolution=output_resolution,
             content_layers=content_layers,
-            style_layers=style_layers
+            style_layers=style_layers,
+            verbosity=verbosity
         )
 
     # Check arguments
@@ -161,7 +170,8 @@ def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000,
                 output_resolution=res,
                 init_img=seed,
                 content_layers=content_layers,
-                style_layers=style_layers
+                style_layers=style_layers,
+                verbosity=verbosity
             )
             # iterations = max(iterations / 2, 100)
 
