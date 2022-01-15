@@ -51,7 +51,7 @@ result = style_transfer(content_image, style_image)
 
 Note the default parameters are oriented towards a high quality result, so depending on your GPU and the image size the style transfer can take 5-15 minutes.
 
-Once the style transfer is performde you save the result back to disk with
+Once the style transfer is performed, you can save the result back to disk with
 
 ```python
 result.save("./result.png")
