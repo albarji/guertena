@@ -7,16 +7,17 @@ References:
 from copy import deepcopy
 import logging
 import numpy as np
+import torch
 import torch.optim as optim
 import torchvision.transforms as transforms
 from tqdm import tqdm
 
-from .styletransfernet import StyleTransferNet, get_device
+from .styletransfernet import StyleTransferLoss, UnetGenerator, get_device
 
 
 def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e6, content_weight=1,
-    tv_weight=1, output_resolution=None, init_img=None, content_layers=None, style_layers=None,
-    verbosity=0):
+    tv_weight=1, valid_pixels_weight=1, output_resolution=None, init_img=None, content_layers=None,
+    style_layers=None, generator="raw", verbosity=0):
     """Runs a style transfer pass using Gatys method
     
     Arguments:
@@ -26,11 +27,13 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
         style_weight: weight of the style loss in the optimization
         content_weight: weight of the content loss in the optimization
         tv_weight: weight of the Total Variation loss in the optimization
+        valid_pixels_weight: weight of the Valid Pixels loss in the optimization
         output_resolution: desired resolution of the resultant image.
             Must be in format 'COLUMNS' or 'COLUMNSxROWS' (e.g. 640 or 640x480)
         init_img: image to initialize the optimization procedure. Must be a PIL image. If None, use content image.
         content_layers: iterable of VGG19 layers names into which to impose content losses. If None, a default choice is used.
         style_layers: iterable of VGG19 layers names into which to impose content losses. If None, a default choice is used.
+        generator: generator network, among "raw" or "u-net"
         verbosity: level of verbosity during style transfer, from 0 to 2.
     
     Returns a PIL image with the result of the style transfer.
@@ -54,42 +57,65 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
     if init_img is not None:
         logging.debug(f"Preprocessed initialization image size: {tuple(init_img.shape[2:])}")
 
-    # Initialize style network
-    style_network = StyleTransferNet(content_img, style_img, content_weight, style_weight, tv_weight, content_layers, style_layers).to(get_device())
-    logging.debug(f"StyleTransferNet created by the following architecture:\n{style_network.model}")
+    # Initialize generator network
+    generator_network = UnetGenerator(3, 3, 7).to(get_device()) if generator == "u-net" else None  # TODO: adapt downscales to image size
+    if generator_network is not None:
+        logging.debug(f"Generator network created by the following architecture:\n{generator_network.model}")
 
-    # Initialize synthetic image
-    input_img = deepcopy(init_img if init_img is not None else content_img).to(get_device())
-    #input_img = deepcopy(init_img if init_img is not None else torch.randn(content_img.data.size())).to(get_device())
+    # Initialize style loss network
+    loss_network = StyleTransferLoss(
+        content_img,
+        style_img,
+        content_weight,
+        style_weight,
+        tv_weight,
+        valid_pixels_weight,
+        content_layers,
+        style_layers,
+        normalize_input=True
+    ).to(get_device())
+    logging.debug(f"Loss network created by the following architecture:\n{loss_network.model}")
+
+    # Initialize pixels of synthetic image if no generator is to be used
+    if generator_network is None:
+        raw_generated_image = deepcopy(init_img if init_img is not None else content_img).to(get_device())
+    # Else prepare generator inputs
+    else:
+        generator_inputs = (init_img if init_img else content_img).to(get_device())
 
     # Prepare optimizer
-    optimizer = optim.LBFGS([input_img.requires_grad_()], tolerance_grad=0, line_search_fn="strong_wolfe")
+    params = [raw_generated_image.requires_grad_()] if generator_network is None else generator_network.parameters()
+    optimizer = optim.LBFGS(params, tolerance_grad=0, line_search_fn="strong_wolfe", history_size=1)
 
     logging.debug('Optimizing...')
     pbar = tqdm(total=num_steps, disable=verbosity==0)
     run = [0]
+    generated_image = [None]  # TODO: this is extremely ugly. Look for another way to do this
     while run[0] <= num_steps:
         def closure():
-            # correct the values of updated input image
-
             optimizer.zero_grad()
-            style_network(input_img)
+            if generator_network:
+                generated_image[0] = generator_network(generator_inputs)
+            else:
+                generated_image[0] = raw_generated_image
+            loss_network(generated_image[0])
             style_score = 0
             content_score = 0
 
-            for sl in style_network.style_losses:
+            for sl in loss_network.style_losses:
                 style_score += sl.loss  # Note in Gatys the different styles losses are averaged, not summed, but this follows jcjohnson implementation
-            for cl in style_network.content_losses:
+            for cl in loss_network.content_losses:
                 content_score += cl.loss
-            tv_score = style_network.tv_loss.loss
+            tv_score = loss_network.tv_loss.loss
+            valid_pixels_score = loss_network.valid_pixels_loss.loss
 
-            loss = style_score + content_score + tv_score
+            loss = style_score + content_score + tv_score + valid_pixels_score
             loss.backward()
 
             run[0] += 1
             pbar.update(1)
             if run[0] % 50 == 0:
-                logging.debug(f'Step: {run[0]}, Style Loss: {style_score.item():6f}, Content Loss: {content_score.item():6f}, TV Loss: {tv_score.item():6f}, Total Loss: {loss.item():6f}')
+                logging.debug(f'Step: {run[0]}, Style Loss: {style_score.item():6f}, Content Loss: {content_score.item():6f}, TV Loss: {tv_score.item():6f}, Valid Pixels Loss: {valid_pixels_score.item():6f}, Total Loss: {loss.item():6f}')
 
             return loss
 
@@ -97,14 +123,14 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
     pbar.close()
 
     # a last correction...
-    input_img.data.clamp_(0, 1)
+    generated_image[0].data.clamp_(0, 1)
 
-    return _format_output_image(input_img)
+    return _format_output_image(generated_image[0])
 
 
 def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000, content_weight=1,
     tv_weight=0, output_resolution=None, content_layers=None, style_layers=None, upscaling_rounds=1, 
-    upscales_per_round=7, starting_resolution=256, verbosity=0):
+    upscales_per_round=7, starting_resolution=256, generator="raw", verbosity=0):
     """Transfers the style from one image to another.
     
     Arguments:
@@ -123,6 +149,7 @@ def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000,
             target resolution, which is faster but yields poorer quality.
         upscales_per_round: number of upscaling steps to perform in each upscaling round.
         starting_resolution: resolution at which to start upscaling steps.
+        generator: generator network, among "raw" or "u-net"
         verbosity: level of verbosity during style transfer, from 0 to 2
     
     Returns a PIL image with the result of the style transfer.
@@ -143,6 +170,7 @@ def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000,
             output_resolution=output_resolution,
             content_layers=content_layers,
             style_layers=style_layers,
+            generator=generator,
             verbosity=verbosity
         )
 
@@ -171,6 +199,7 @@ def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000,
                 init_img=seed,
                 content_layers=content_layers,
                 style_layers=style_layers,
+                generator=generator,
                 verbosity=verbosity
             )
             # iterations = max(iterations / 2, 100)

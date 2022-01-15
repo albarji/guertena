@@ -7,6 +7,7 @@ References:
     - Pytorch implementation by ProGamerGov https://github.com/ProGamerGov/neural-style-pt
 """
 from collections.abc import Iterable
+import functools
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -19,8 +20,8 @@ def get_device():
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class StyleTransferNet(torch.nn.Module):
-    """Neural network that implements the style transfer algorithm of Gatys"""
+class StyleTransferLoss(torch.nn.Module):
+    """Neural network that implements the style transfer loss of Gatys"""
     vgg19_normalization_mean = torch.tensor([0.485, 0.456, 0.406]).to(get_device())
     vgg19_normalization_std = torch.tensor([0.229, 0.224, 0.225]).to(get_device())
     #content_layers_default = ['conv_4']
@@ -30,8 +31,8 @@ class StyleTransferNet(torch.nn.Module):
     style_layers_default = ['conv_1', 'conv_3', 'conv_5', 'conv_9', 'conv_13']  # First convolution from each block
     #style_layers_default = ['relu_1', 'relu_3', 'relu_5', 'relu_9', 'relu_13']  # First convolution from each block (Gatys original)
 
-    def __init__(self, content_img, style_img, content_weight, style_weight, tv_weight, content_layers=None, style_layers=None):
-        super(StyleTransferNet, self).__init__()
+    def __init__(self, content_img, style_img, content_weight, style_weight, tv_weight, valid_pixels_weight, content_layers=None, style_layers=None, normalize_input=True):
+        super(StyleTransferLoss, self).__init__()
 
         # Check inputs
         if content_layers is None:
@@ -46,13 +47,18 @@ class StyleTransferNet(torch.nn.Module):
         # Initialize VGG19 reference architecture
         cnn = models.vgg19(pretrained=True).features.to(get_device()).eval()
 
-        # Start with image normalization layer
-        normalization = Normalization(self.vgg19_normalization_mean, self.vgg19_normalization_std)
-        self.model = nn.Sequential(normalization)
-
-        # Add TV loss layer
+        # Start with valid pixels and TV loss layers
+        self.valid_pixels_loss = ValidPixelsLoss(valid_pixels_weight)
         self.tv_loss = TVLoss(tv_weight)
+        self.model = nn.Sequential()
+        self.model.add_module("valid_pixels_loss", self.valid_pixels_loss)
         self.model.add_module("tv_loss", self.tv_loss)
+
+        # Start with image normalization layer
+        if normalize_input:
+            normalization = Normalization(self.vgg19_normalization_mean, self.vgg19_normalization_std)
+            # self.model = nn.Sequential(normalization)
+            self.model.add_module("normalization", normalization)
 
         # Add VGG19 layers, with added losses
         self.content_losses = []
@@ -104,6 +110,7 @@ class StyleTransferNet(torch.nn.Module):
 
 class ScaleGradients(torch.autograd.Function):
     """Scale gradients in the backward pass"""
+    # TODO: this does not seem to be useful, delete?
     @staticmethod
     def forward(self, input_tensor, strength):
         self.strength = strength
@@ -174,6 +181,20 @@ class TVLoss(nn.Module):
         return input
 
 
+class ValidPixelsLoss(nn.Module):
+    """Loss that linearly penalizes values outside the range [0, 1]"""
+
+    def __init__(self, strength):
+        super(ValidPixelsLoss, self).__init__()
+        self.strength = strength
+
+    def forward(self, input):
+        overvalues = torch.sum(nn.functional.relu(input - 1))
+        undervalues = torch.sum(nn.functional.relu(-input))
+        self.loss = self.strength / torch.numel(input) * (overvalues + undervalues)
+        return input
+
+
 class Normalization(nn.Module):
     """Layer that normalizes an image using given mean and standard deviation statistics"""
     def __init__(self, mean, std):
@@ -187,3 +208,114 @@ class Normalization(nn.Module):
     def forward(self, img):
         # normalize img
         return (img - self.mean) / self.std
+
+
+class UnetGenerator(nn.Module):
+    """Create a Unet-based generator
+
+    Based on: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/2b1533a656f28aa7075e4f02886951c3309713dc/models/networks.py#L436
+    """
+
+    def __init__(self, input_nc, output_nc, num_downs, ngf=64, norm_layer=nn.BatchNorm2d, use_dropout=False):
+        """Construct a Unet generator
+        Parameters:
+            input_nc (int)  -- the number of channels in input images
+            output_nc (int) -- the number of channels in output images
+            num_downs (int) -- the number of downsamplings in UNet. For example, if |num_downs| == 7,
+                                image of size 128x128 will become of size 1x1 at the bottleneck
+            ngf (int)       -- the number of filters in the last conv layer
+            norm_layer      -- normalization layer
+        We construct the U-Net from the innermost layer to the outermost layer.
+        It is a recursive process.
+        """
+        super(UnetGenerator, self).__init__()
+        # construct unet structure
+        unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)  # add the innermost layer
+        for i in range(num_downs - 5):          # add intermediate layers with ngf * 8 filters
+            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout)
+        # gradually reduce the number of filters from ngf * 8 to ngf
+        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
+        self.model = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)  # add the outermost layer
+
+    def forward(self, input):
+        """Standard forward"""
+        return self.model(input)
+
+
+class UnetSkipConnectionBlock(nn.Module):
+    """Defines the Unet submodule with skip connection.
+        X -------------------identity--------------------
+        |-- downsampling -- |submodule| -- upsampling --|
+
+    Source: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/2b1533a656f28aa7075e4f02886951c3309713dc/models/networks.py#L468
+    """
+
+    def __init__(self, outer_nc, inner_nc, input_nc=None,
+                 submodule=None, outermost=False, innermost=False, norm_layer=nn.BatchNorm2d, use_dropout=False):
+        """Construct a Unet submodule with skip connections.
+        Parameters:
+            outer_nc (int) -- the number of filters in the outer conv layer
+            inner_nc (int) -- the number of filters in the inner conv layer
+            input_nc (int) -- the number of channels in input images/features. If None, use outer_nc
+            submodule (UnetSkipConnectionBlock) -- previously defined submodules
+            outermost (bool)    -- if this module is the outermost module
+            innermost (bool)    -- if this module is the innermost module
+            norm_layer          -- normalization layer
+            use_dropout (bool)  -- if use dropout layers.
+        """
+        super(UnetSkipConnectionBlock, self).__init__()
+        self.outermost = outermost
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+        if input_nc is None:
+            input_nc = outer_nc
+        downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
+                             stride=2, padding=1, bias=use_bias)
+        downrelu = nn.LeakyReLU(0.2, True)
+        downnorm = norm_layer(inner_nc)
+        uprelu = nn.ReLU(True)
+        upnorm = norm_layer(outer_nc)
+        # Conv layer to correct deconvolution checkerboard artifacts
+        correctionconv = nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1, padding='same', bias=True)
+
+        if outermost:
+            upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
+                                        kernel_size=4, stride=2,
+                                        padding=1)
+            down = [downconv, downnorm, downrelu]
+            #up = [uprelu, upconv, correctionconv, nn.Hardsigmoid()]  # hard sigmoid at output for normalized pixel values
+            #up = [upconv, correctionconv]
+            up = [upconv]
+            model = down + [submodule] + up
+        elif innermost:
+            upconv = nn.ConvTranspose2d(inner_nc, outer_nc,
+                                        kernel_size=4, stride=2,
+                                        padding=1, bias=use_bias)
+            down = [downconv, downnorm, downrelu]
+            #up = [upconv, correctionconv, upnorm, uprelu]
+            up = [upconv, upnorm, uprelu]
+            model = down + up
+        else:
+            upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
+                                        kernel_size=4, stride=2,
+                                        padding=1, bias=use_bias)
+            down = [downconv, downnorm, downrelu]
+            #up = [upconv, correctionconv, upnorm, uprelu]
+            up = [upconv, upnorm, uprelu]
+
+            if use_dropout:
+                model = down + [submodule] + up + [nn.Dropout(0.5)]
+            else:
+                model = down + [submodule] + up
+
+        self.model = nn.Sequential(*model)
+
+    def forward(self, x):
+        if self.outermost:
+            return self.model(x)
+        else:   # add skip connections
+            return torch.cat([x, self.model(x)], 1)  # FIXME: issues when image size is not a power of 2
