@@ -25,6 +25,8 @@ if __name__ == "__main__":
                         help='Weight of the style loss')
     parser.add_argument('--tv_weight', type=float, default=1,
                         help='Weight of the total variation loss')
+    parser.add_argument('--valid_pixels_weight', type=float, default=1,
+                        help='Weight of the valid pixels loss')
     parser.add_argument('--content_layers', type=str, default=None,
                         help='Comma-separated string with the names of VGG-19 layers where to inject content losses')
     parser.add_argument('--style_layers', type=str, default=None,

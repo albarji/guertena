@@ -79,25 +79,34 @@ If the style transfer results do not look good there are several parameters you 
 
 Guertena is mainly based on the Neural Style Transfer algorithm by [Leon A. Gatys, Alexander S. Ecker and Matthias Bethge](https://arxiv.org/abs/1508.06576). In this method, the image $x$ to be produced tries to minimize the following cost function
 
-<img src="https://render.githubusercontent.com/render/math?math=\Huge \min_x \lambda_{content} L_{content}(x, c) %2B \lambda_{style} L_{style}(x, s) %2B \lambda_{TV} TV(x)">
+![alt text](docs/img/guertenaEquation.png)
 
 that is, the product image must minimize three different criteria:
 
-* **Content loss**: measures how well the resultant image matches the original content image. This level of match is computed in terms of the neuron activation values of a VGG19 network that uses the image as input.
-* **Style loss**: measures how well the resultant image matches the provided style image. This level of match is computed in terms of the neuron activation correlations of a VGG19 network that uses the image as input.
-* **TV loss**: penalizes neighbouring pixels that take very different values, to avoid noise appearing in the result.
+* **Content loss**: measures how well the resultant image $x$ matches the original content image $c$. This level of match is computed in terms of the neuron activation values of a VGG19 network that uses the image as input.
+* **Style loss**: measures how well the resultant image $x$ matches the provided style image $s$. This level of match is computed in terms of the neuron activation correlations of a VGG19 network that uses the image as input.
+* **TV loss**: penalizes neighbouring pixels in $x$ that take very different values, to avoid noise appearing in the result. For more information check [Total Variation denoising](https://en.wikipedia.org/wiki/Total_variation_denoising).
+* **Valid pixels loss**: penalizes pixels in $x$ that lie outside the valid pixel values range, $[0, 1]$.
 
 To produce different results we can tune the weights of these three criteria through the appropriate parameters of the `style_transfer` function:
 
 * `content_weight`: larger values force the result to more closely the original image. Default is 1.
 * `style_weight`: larger values impose stronger style patterns. Default is 1e6.
 * `tv_weight`: larger values produce smoother images. Default is 1.
+* `valid_pixels_weight`: larger values enforce a stronger constraint on $x$ having valid pixel values along all the optimization process. Default is 1, and you shouldn't really change it unless you have a very good for it.
 
 When changing this parameters it is recommended to increase/decrease them an order of magnitude. E.g. to imprint a stronger style you could try with
 
 ```python
 result = style_transfer(content_image, style_image, style_weight=1e7)
 ```
+
+### Experimental features (use at your own risk)
+
+Guertena also includes the option to change generator function producing the image $x$. Options are:
+
+* `raw`: optimize directly the pixels of $x$ (default)
+* `u-net`: use a [U-Net](https://en.wikipedia.org/wiki/U-Net) to produce $x$, and optimize the network parameters of the net instead of the raw pixels values. Note this feature currently produces significantly worse quality results and is slower, but might consume less memory for very large images.
 
 ## References
 

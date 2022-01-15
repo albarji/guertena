@@ -129,7 +129,7 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
 
 
 def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000, content_weight=1,
-    tv_weight=0, output_resolution=None, content_layers=None, style_layers=None, upscaling_rounds=1, 
+    tv_weight=1, valid_pixels_weight=1, output_resolution=None, content_layers=None, style_layers=None, upscaling_rounds=1,
     upscales_per_round=7, starting_resolution=256, generator="raw", verbosity=0):
     """Transfers the style from one image to another.
     
@@ -140,6 +140,7 @@ def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000,
         style_weight: weight of the style loss in the optimization
         content_weight: weight of the content loss in the optimization
         tv_weight: weight of the Total Variation loss in the optimization
+        valid_pixels_weight: weight of the Valid Pixels loss in the optimization
         output_resolution: desired resolution of the resultant image.
             Must be in format 'COLUMNS' or 'COLUMNSxROWS' (e.g. 640 or 640x480)
         init_img: image to initialize the optimization procedure. Must be a PIL image. If None, use content image.
@@ -167,6 +168,7 @@ def style_transfer(content_img, style_img, num_steps=1000, style_weight=1000000,
             style_weight, 
             content_weight, 
             tv_weight,
+            valid_pixels_weight,
             output_resolution=output_resolution,
             content_layers=content_layers,
             style_layers=style_layers,
