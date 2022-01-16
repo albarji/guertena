@@ -28,6 +28,7 @@ jobs:
       run: |
         which python
         which conda
+        conda env list
         conda list
 
     - name: Test with pytest
