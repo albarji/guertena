@@ -108,6 +108,16 @@ Guertena also includes the option to change generator function producing the ima
 * `raw`: optimize directly the pixels of $x$ (default)
 * `u-net`: use a [U-Net](https://en.wikipedia.org/wiki/U-Net) to produce $x$, and optimize the network parameters of the net instead of the raw pixels values. Note this feature currently produces significantly worse quality results and is slower, but might consume less memory for very large images.
 
+## Tips and tricks
+
+### Generating high resolution images
+
+As you might not have a large GPU readily available, there is a resolution limit to the images you can create before overflowing GPU memory. To circumvent this, you can generate your image at the highest resolution your GPU allows to, and then apply a super-resolution technique.
+
+One super-resolution method I can particularly recommend is [AMD FidelityFX SuperResolution](https://gpuopen.com/fidelityfx-superresolution/). You can readily use it as a Windows executable file [here](https://github.com/GPUOpen-Effects/FidelityFX-CLI?ref=bestofcpp.com), and instructions on how to use it [here](https://gpuopen.com/learn/using-fidelityfx-cli/).
+
+Alternatively, if you don't have a Windows system available, you can use [waifu2x](http://waifu2x.udp.jp/index.es.html).
+
 ## References
 
 Guertena builds on many previous methods and implementations of neural style transfer methods. Here are the relevant ones:
@@ -124,7 +134,7 @@ The author acknowledges partial financial support (in the form of GPU time) from
 
 * PID2019-106827GB-I00 / AEI / 10.13039/501100011033
 * European Regional Development Fund and Spanish Ministry of Economy, Industry, and Competitiveness - State Research Agency, project TIN2016-76406-P (AEI/FEDER, UE).
-* Grupo de Aprendizaje Autómatico (GAA), Universidad Autónoma de Madrid (UAM)
-* Instituto de Ingeniería del Conocimiento (IIC)
+* [Grupo de Aprendizaje Autómatico (GAA)](http://arantxa.ii.uam.es/~gaa/index.html), Universidad Autónoma de Madrid (UAM)
+* [Instituto de Ingeniería del Conocimiento (IIC)](https://www.iic.uam.es/)
 
 And in case you are wondering, the name *Guertena* and the opening quote come from the excellent, albeit obscure, indie game [Ib](https://vgperson.com/games/ib.htm). I'm not related to it's creator ([kouri](http://kouri.kuchinawa.com/)) nor claim any rights. I'm just a fan of hiw work and wanted to pay homage.
