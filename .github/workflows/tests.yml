@@ -33,4 +33,4 @@ jobs:
 
     - name: Test with pytest
       run: |
-        conda activate base && conda install pytest && pytest tests
+        source activate base && conda install pytest && pytest tests
