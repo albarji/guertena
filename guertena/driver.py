@@ -14,10 +14,12 @@ from tqdm import tqdm
 
 from .styletransfernet import StyleTransferLoss, UnetGenerator, get_device
 
+VGG19_RECEPTIVE_FIELD_SIZE = 212  # https://distill.pub/2019/computing-receptive-fields/
+
 
 def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e6, content_weight=1,
     tv_weight=1, valid_pixels_weight=1, output_resolution=None, init_img=None, content_layers=None,
-    style_layers=None, generator="raw", verbosity=0):
+    style_layers=None, generator="raw", downscaling_losses=True, verbosity=0):
     """Runs a style transfer pass using Gatys method
     
     Arguments:
@@ -34,6 +36,7 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
         content_layers: iterable of VGG19 layers names into which to impose content losses. If None, a default choice is used.
         style_layers: iterable of VGG19 layers names into which to impose content losses. If None, a default choice is used.
         generator: generator network, among "raw" or "u-net"
+        downscaling_losses: whether to use auxiliary downscaling losses
         verbosity: level of verbosity during style transfer, from 0 to 2.
     
     Returns a PIL image with the result of the style transfer.
@@ -56,6 +59,12 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
     logging.debug(f"Preprocessed style image size: {tuple(content_img.shape[2:])}")
     if init_img is not None:
         logging.debug(f"Preprocessed initialization image size: {tuple(init_img.shape[2:])}")
+    # Compute number of possible downscales
+    possible_downscales = int(np.ceil(min(
+        np.log2(content_img.shape[2]/VGG19_RECEPTIVE_FIELD_SIZE), 
+        np.log2(content_img.shape[3]/VGG19_RECEPTIVE_FIELD_SIZE)
+    )))
+    logging.debug(f"Number of possible image downscales: {possible_downscales}")
 
     # Initialize generator network
     generator_network = UnetGenerator(3, 3, 7).to(get_device()) if generator == "u-net" else None  # TODO: adapt downscales to image size
@@ -75,6 +84,30 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
         normalize_input=True
     ).to(get_device())
     logging.debug(f"Loss network created by the following architecture:\n{loss_network.model}")
+
+    # Initialize auxiliary losses at reduced resolutions
+    if downscaling_losses:
+        reduced_content_img = content_img
+        reduced_style_img = style_img
+        weight_scale = 1.0
+        auxiliary_losses = []
+        for _ in range(possible_downscales):
+            reduced_content_img = torch.nn.functional.avg_pool2d(reduced_content_img, 2)
+            reduced_style_img = torch.nn.functional.avg_pool2d(reduced_style_img, 2)
+            weight_scale /= 2.0
+            auxiliary_losses.append(
+                StyleTransferLoss(
+                    reduced_content_img,
+                    reduced_style_img,
+                    content_weight * weight_scale,
+                    style_weight * weight_scale,
+                    tv_weight=0,
+                    valid_pixels_weight=0,
+                    content_layers=content_layers,
+                    style_layers=style_layers,
+                    normalize_input=True
+                ).to(get_device())
+            )
 
     # Initialize pixels of synthetic image if no generator is to be used
     if generator_network is None:
@@ -98,16 +131,28 @@ def _style_transfer_pass(content_img, style_img, num_steps=1000, style_weight=1e
                 generated_image[0] = generator_network(generator_inputs)
             else:
                 generated_image[0] = raw_generated_image
+            
+            # Apply main loss
             loss_network(generated_image[0])
             style_score = 0
-            content_score = 0
-
             for sl in loss_network.style_losses:
                 style_score += sl.loss  # Note in Gatys the different styles losses are averaged, not summed, but this follows jcjohnson implementation
+            content_score = 0
             for cl in loss_network.content_losses:
                 content_score += cl.loss
             tv_score = loss_network.tv_loss.loss
             valid_pixels_score = loss_network.valid_pixels_loss.loss
+
+            # Apply loss network at different image scales, until minimal size accepted by VGG19 (32x32 pixels)
+            if downscaling_losses:
+                current_image = generated_image[0]
+                for i in range(possible_downscales):
+                    current_image = torch.nn.functional.avg_pool2d(current_image, 2)
+                    auxiliary_losses[i](current_image)
+                    for sl in auxiliary_losses[i].style_losses:
+                        style_score += sl.loss  # Note in Gatys the different styles losses are averaged, not summed, but this follows jcjohnson implementation
+                    for cl in auxiliary_losses[i].content_losses:
+                        content_score += cl.loss
 
             loss = style_score + content_score + tv_score + valid_pixels_score
             loss.backward()

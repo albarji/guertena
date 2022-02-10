@@ -48,16 +48,17 @@ class StyleTransferLoss(torch.nn.Module):
         cnn = models.vgg19(pretrained=True).features.to(get_device()).eval()
 
         # Start with valid pixels and TV loss layers
-        self.valid_pixels_loss = ValidPixelsLoss(valid_pixels_weight)
-        self.tv_loss = TVLoss(tv_weight)
         self.model = nn.Sequential()
-        self.model.add_module("valid_pixels_loss", self.valid_pixels_loss)
-        self.model.add_module("tv_loss", self.tv_loss)
+        if valid_pixels_weight > 0:
+            self.valid_pixels_loss = ValidPixelsLoss(valid_pixels_weight)
+            self.model.add_module("valid_pixels_loss", self.valid_pixels_loss)
+        if tv_weight > 0:
+            self.tv_loss = TVLoss(tv_weight)
+            self.model.add_module("tv_loss", self.tv_loss)
 
         # Start with image normalization layer
         if normalize_input:
             normalization = Normalization(self.vgg19_normalization_mean, self.vgg19_normalization_std)
-            # self.model = nn.Sequential(normalization)
             self.model.add_module("normalization", normalization)
 
         # Add VGG19 layers, with added losses
